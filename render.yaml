@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: bot-promocoes
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: CANAL_ID
+        sync: false
