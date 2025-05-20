@@ -1,45 +1,47 @@
+from playwright.sync_api import sync_playwright
 import requests
 import time
 import logging
+import os
 
-# DADOS FIXOS
-TOKEN = "7526311480:AAGubXHX4sGJDcvMFBvWYu9JSlJGa3DStng"
-CANAL_ID = "@promocaore"
-COD_AFILIADO = "abc123"  # Substitua pelo seu código real, se tiver
+TOKEN = os.getenv("TOKEN")        # Token do bot no env var
+CANAL_ID = os.getenv("CANAL_ID")  # Canal do Telegram no env var, ex: @promocaore
+COD_AFILIADO = os.getenv("COD_AFILIADO")  # Código afiliado Shopee no env var
 
 logging.basicConfig(level=logging.INFO)
 
-# Simulação de produtos da Shopee
-def buscar_ofertas():
-    ofertas = [
-        {
-            "titulo": "Fone Bluetooth Xiaomi",
-            "preco": 59.90,
-            "id_produto": "1234567890"
-        },
-        {
-            "titulo": "Tênis Esportivo Masculino",
-            "preco": 129.99,
-            "id_produto": "2345678901"
-        },
-        {
-            "titulo": "Relógio Smartwatch D20",
-            "preco": 34.90,
-            "id_produto": "3456789012"
-        }
-    ]
+def pegar_ofertas():
+    ofertas = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        page = browser.new_page()
+        page.goto("https://shopee.com.br/ofertas")
+        page.wait_for_selector('div[data-sqe="item"]', timeout=10000)
 
-    for oferta in ofertas:
-        oferta["link"] = f"https://shope.ee/{oferta['id_produto']}?af_click_lookback=7d&af_siteid={COD_AFILIADO}"
+        cards = page.query_selector_all('div[data-sqe="item"]')
+        for card in cards[:5]:
+            try:
+                titulo = card.query_selector('div._10Wbs-._5SSWfi.UjjMrh').inner_text()
+                preco = card.query_selector('span._29R_un').inner_text()
+                link = card.query_selector('a').get_attribute('href')
+                link_completo = f"https://shopee.com.br{link}?af_click_lookback=7d&af_siteid={COD_AFILIADO}"
+                ofertas.append({
+                    "titulo": titulo,
+                    "preco": preco,
+                    "link": link_completo
+                })
+            except Exception as e:
+                logging.error(f"Erro ao extrair dados do card: {e}")
+        browser.close()
     return ofertas
 
-# Envia a mensagem para o Telegram
 def enviar_telegram(texto):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
         "chat_id": CANAL_ID,
         "text": texto,
-        "parse_mode": "HTML"
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
     }
     try:
         r = requests.post(url, data=payload)
@@ -48,21 +50,22 @@ def enviar_telegram(texto):
     except Exception as e:
         logging.error(f"Erro Telegram: {e}")
 
-# LOOP PRINCIPAL
 def main():
-    logging.info("Iniciando bot de promoções Shopee...")
+    logging.info("Iniciando bot de promoções Shopee no Render...")
     while True:
-        ofertas = buscar_ofertas()
+        ofertas = pegar_ofertas()
+        if not ofertas:
+            logging.info("Nenhuma oferta encontrada no momento.")
         for oferta in ofertas:
             texto = (
                 f"🛍 <b>{oferta['titulo']}</b>\n"
-                f"💰 <b>R${oferta['preco']:.2f}</b>\n"
+                f"💰 <b>{oferta['preco']}</b>\n"
                 f"🔗 <a href='{oferta['link']}'>Comprar na Shopee</a>"
             )
             enviar_telegram(texto)
-            time.sleep(2)  # Evita flood
-        logging.info("Aguardando 5 minutos para nova rodada.")
-        time.sleep(300)  # Espera 5 minutos
+            time.sleep(2)
+        logging.info("Esperando 10 minutos para nova busca.")
+        time.sleep(600)
 
 if __name__ == "__main__":
     main()
