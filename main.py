@@ -3,8 +3,8 @@ import time
 import os
 import logging
 
-TOKEN = os.getenv("TOKEN")
-CANAL_ID = os.getenv("CANAL_ID")
+TOKEN = os.getenv("7526311480:AAGubXHX4sGJDcvMFBvWYu9JSlJGa3DStng")
+CANAL_ID = os.getenv("@promocaore")
 API_OFERTAS = "https://dummyjson.com/products"  # API de teste
 
 logging.basicConfig(level=logging.INFO)
